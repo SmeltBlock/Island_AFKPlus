@@ -21,8 +21,8 @@ plugins {
 }
 
 group = 'net.lapismc'
-archivesBaseName = "AFKPlus"
-version = '3.5.1'
+archivesBaseName = "IslandTPAfk"
+version = '1.0.1'
 description = 'AFK for professional servers'
 sourceCompatibility = '21'
 targetCompatibility = '21'
