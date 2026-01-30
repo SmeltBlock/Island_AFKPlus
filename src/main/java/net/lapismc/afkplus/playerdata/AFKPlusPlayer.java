@@ -50,6 +50,12 @@ public class AFKPlusPlayer {
     private boolean isWarned;
 
     /**
+     * Tracks if this player has already had the AFK action applied this AFK session.
+     * Used to prevent repeated teleports when the action does not remove the player (e.g. teleport instead of kick).
+     */
+    private boolean isActioned;
+
+    /**
      * @param plugin The plugin instance for config and permissions access
      * @param uuid   The UUID of the player that this class should control
      */
@@ -60,6 +66,7 @@ public class AFKPlusPlayer {
         isFakeAFK = false;
         isInactive = false;
         isWarned = false;
+        isActioned = false;
         lastInteract = System.currentTimeMillis();
     }
 
@@ -242,6 +249,8 @@ public class AFKPlusPlayer {
         afkStart = System.currentTimeMillis();
         //Set the player as AFK
         isAFK = true;
+        //Reset actioned state for this AFK session
+        isActioned = false;
         //Update the players AFK status with the essentials plugin
         updateEssentialsAFKState();
         //Set if the player should be ignored for sleeping
@@ -303,6 +312,8 @@ public class AFKPlusPlayer {
             recordTimeStatistic();
         //Reset warning
         isWarned = false;
+        //Reset actioned state
+        isActioned = false;
         //Set player as no longer AFK
         isAFK = false;
         isFakeAFK = false;
@@ -397,8 +408,18 @@ public class AFKPlusPlayer {
         AFKActionEvent event = new AFKActionEvent(this, command);
         Bukkit.getPluginManager().callEvent(event);
         if (!event.isCancelled()) {
-            stopAFK(true);
+            //If the action does not remove the player (e.g. teleport instead of kick), keep them AFK and prevent repeat actions.
+            boolean actionNoKick = plugin.getConfig().getBoolean("ActionNoKick");
+            if (!actionNoKick) {
+                //Default behaviour: stop AFK before running the action (kick actions typically remove the player anyway).
+                stopAFK(true);
+            } else {
+                //Teleport/non-kick actions should only happen once per AFK session.
+                isActioned = true;
+            }
+
             runCommands(event.getCommand());
+
             plugin.tasks.runTaskLater(() -> {
                 //Check if the player has been removed by the action, warn if they haven't
                 //This can be silenced by setting ActionNoKick: true in the config
@@ -605,7 +626,7 @@ public class AFKPlusPlayer {
                     //Check if the player can have an action taken
                     if (!timeToAction.equals(-1)) {
                         //Check for action and if we are taking action yet
-                        if (secondsSinceAFKStart >= timeToAction && isAtPlayerRequirement) {
+                        if (secondsSinceAFKStart >= timeToAction && isAtPlayerRequirement && !isActioned) {
                             plugin.tasks.runTask(this::takeAction, false);
                         }
                     }
